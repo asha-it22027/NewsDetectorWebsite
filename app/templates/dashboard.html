@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 class="mb-4">Dashboard</h2>
+    <p class="lead">Welcome back, {{ current_user.username }}!</p>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Verify News (Text)</h5>
+                    <p class="card-text text-muted">Paste news content, a headline, or a URL to verify its authenticity.</p>
+                    <form method="POST" action="{{ url_for('dashboard') }}">
+                        <div class="mb-3">
+                            <textarea name="news_text" class="form-control" rows="5" placeholder="Enter news text here..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Verify Text</button>
+                    </form>
+                    {% if result %}
+                    <div class="mt-4">
+                        <h5>Verification Result</h5>
+                        <p><strong>Truth Score:</strong> {{ result.truth_score }}%</p>
+                        <p><strong>False Score:</strong> {{ result.false_score }}%</p>
+                        <p><strong>Final Classification:</strong> 
+                            <span class="{% if result.classification == 'Mostly True' %}result-true{% elif result.classification == 'False' %}result-false{% else %}result-partial{% endif %}">
+                                {{ result.classification }}
+                            </span>
+                        </p>
+                        <p><strong>Explanation:</strong> {{ result.explanation }}</p>
+                        {% if result.source %}
+                        <p><strong>Sources:</strong></p>
+                        <ul>
+                            {% for src in result.source | fromjson %}
+                            <li><a href="{{ src }}" target="_blank">{{ src }}</a></li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Verify Image</h5>
+                    <p class="card-text text-muted">Upload an image to check for manipulation.</p>
+                    <form>
+                        <div class="mb-3">
+                            <input type="file" class="form-control">
+                        </div>
+                        <button type="submit" class="btn btn-primary" disabled>Coming Soon</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Verification Statistics</h5>
+                    <div class="chart-container">
+                        <canvas id="verificationChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Verification History</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Content</th>
+                                    <th>Result</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for verification in verifications %}
+                                <tr>
+                                    <td>{{ verification.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ verification.content[:100] }}...</td>
+                                    <td>
+                                        <span class="{% if verification.classification == 'Mostly True' %}result-true{% elif verification.classification == 'False' %}result-false{% else %}result-partial{% endif %}">
+                                            {{ verification.classification }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal"
+                                            data-content="{{ verification.content }}"
+                                            data-classification="{{ verification.classification }}"
+                                            data-truth-score="{{ verification.truth_score }}"
+                                            data-false-score="{{ verification.false_score }}"
+                                            data-explanation="{{ verification.explanation }}"
+                                            data-source="{{ verification.source or '' }}">
+                                            Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center">No history yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailsModalLabel">Verification Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Content:</strong></p>
+                    <p id="modal-content"></p>
+                    <hr>
+                    <p><strong>Truth Score:</strong> <span id="modal-truth-score"></span>%</p>
+                    <p><strong>False Score:</strong> <span id="modal-false-score"></span>%</p>
+                    <p><strong>Final Classification:</strong> <span id="modal-classification"></span></p>
+                    <p><strong>Explanation:</strong> <span id="modal-explanation"></span></p>
+                    <p><strong>Source:</strong> <a id="modal-source" href="#" target="_blank"></a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Chart.js rendering
+    const ctx = document.getElementById('verificationChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: {{ chart_data.labels | tojson }},
+                datasets: [{
+                    label: '# of Verifications',
+                    data: {{ chart_data.counts | tojson }},
+                    backgroundColor: [
+                        'rgba(220, 53, 69, 0.7)',  // False
+                        'rgba(255, 193, 7, 0.7)',   // Partially True
+                        'rgba(40, 167, 69, 0.7)' // Mostly True
+                    ],
+                    borderColor: [
+                        '#dc3545',
+                        '#ffc107',
+                        '#28a745'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
+    }
+
+    // Modal logic
+    const detailsModal = document.getElementById('detailsModal');
+    if (detailsModal) {
+        detailsModal.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget;
+            const content = button.getAttribute('data-content');
+            const classification = button.getAttribute('data-classification');
+            const truthScore = button.getAttribute('data-truth-score');
+            const falseScore = button.getAttribute('data-false-score');
+            const explanation = button.getAttribute('data-explanation');
+            const source = button.getAttribute('data-source');
+
+            const modalContent = detailsModal.querySelector('#modal-content');
+            const modalClassification = detailsModal.querySelector('#modal-classification');
+            const modalTruthScore = detailsModal.querySelector('#modal-truth-score');
+            const modalFalseScore = detailsModal.querySelector('#modal-false-score');
+            const modalExplanation = detailsModal.querySelector('#modal-explanation');
+            const modalSource = detailsModal.querySelector('#modal-source');
+            
+            modalContent.textContent = content;
+            modalClassification.textContent = classification;
+            modalTruthScore.textContent = truthScore;
+            modalFalseScore.textContent = falseScore;
+            modalExplanation.textContent = explanation;
+
+            modalClassification.className = ''; // Reset class
+            if (classification === 'Mostly True') {
+                modalClassification.classList.add('result-true');
+            } else if (classification === 'False') {
+                modalClassification.classList.add('result-false');
+            } else {
+                modalClassification.classList.add('result-partial');
+            }
+
+            if (source) {
+                modalSource.href = source;
+                modalSource.textContent = source;
+                modalSource.parentElement.style.display = 'block';
+            } else {
+                modalSource.parentElement.style.display = 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}

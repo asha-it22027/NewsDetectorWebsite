@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 class="mb-4">Verification History</h2>
+    <p class="lead">View all your past news verifications.</p>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">All Verifications</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Content</th>
+                                    <th>Result</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for verification in verifications %}
+                                <tr>
+                                    <td>{{ verification.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ verification.content[:100] }}...</td>
+                                    <td>
+                                        <span class="{% if verification.classification == 'Mostly True' %}result-true{% elif verification.classification == 'False' %}result-false{% else %}result-partial{% endif %}">
+                                            {{ verification.classification }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal"
+                                            data-content="{{ verification.content }}"
+                                            data-classification="{{ verification.classification }}"
+                                            data-truth-score="{{ verification.truth_score }}"
+                                            data-false-score="{{ verification.false_score }}"
+                                            data-explanation="{{ verification.explanation }}"
+                                            data-source="{{ verification.source or '' }}">
+                                            Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center">No history yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailsModalLabel">Verification Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Content:</strong></p>
+                    <p id="modal-content"></p>
+                    <hr>
+                    <p><strong>Truth Score:</strong> <span id="modal-truth-score"></span>%</p>
+                    <p><strong>False Score:</strong> <span id="modal-false-score"></span>%</p>
+                    <p><strong>Final Classification:</strong> <span id="modal-classification"></span></p>
+                    <p><strong>Explanation:</strong> <span id="modal-explanation"></span></p>
+                    <p><strong>Sources:</strong></p>
+                    <ul id="modal-sources-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Modal logic (copied from dashboard for reusability)
+    const detailsModal = document.getElementById('detailsModal');
+    if (detailsModal) {
+        detailsModal.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget;
+            const content = button.getAttribute('data-content');
+            const classification = button.getAttribute('data-classification');
+            const truthScore = button.getAttribute('data-truth-score');
+            const falseScore = button.getAttribute('data-false-score');
+            const explanation = button.getAttribute('data-explanation');
+            const source = button.getAttribute('data-source');
+
+            const modalContent = detailsModal.querySelector('#modal-content');
+            const modalClassification = detailsModal.querySelector('#modal-classification');
+            const modalTruthScore = detailsModal.querySelector('#modal-truth-score');
+            const modalFalseScore = detailsModal.querySelector('#modal-false-score');
+            const modalExplanation = detailsModal.querySelector('#modal-explanation');
+            const modalSourcesList = detailsModal.querySelector('#modal-sources-list');
+            
+            modalContent.textContent = content;
+            modalClassification.textContent = classification;
+            modalTruthScore.textContent = truthScore;
+            modalFalseScore.textContent = falseScore;
+            modalExplanation.textContent = explanation;
+
+            modalClassification.className = ''; // Reset class
+            if (classification === 'Mostly True') {
+                modalClassification.classList.add('result-true');
+            } else if (classification === 'False') {
+                modalClassification.classList.add('result-false');
+            } else {
+                modalClassification.classList.add('result-partial');
+            }
+
+            // Clear previous sources
+            modalSourcesList.innerHTML = ''; 
+            if (source) {
+                try {
+                    const sourcesArray = JSON.parse(source);
+                    sourcesArray.forEach(src => {
+                        const listItem = document.createElement('li');
+                        const link = document.createElement('a');
+                        link.href = src;
+                        link.textContent = src;
+                        link.target = "_blank";
+                        listItem.appendChild(link);
+                        modalSourcesList.appendChild(listItem);
+                    });
+                    modalSourcesList.parentElement.style.display = 'block';
+                } catch (e) {
+                    console.error("Failed to parse source JSON:", e);
+                    modalSourcesList.parentElement.style.display = 'none';
+                }
+            } else {
+                modalSourcesList.parentElement.style.display = 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}
