@@ -25,7 +25,6 @@ class Verification(db.Model):
     explanation = db.Column(db.Text)
     source_id = db.Column(db.Integer, db.ForeignKey('source.id'))
     source_obj = db.relationship('Source', backref='verifications')
-    source = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 

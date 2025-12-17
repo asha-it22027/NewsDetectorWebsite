@@ -5,3 +5,4 @@ Flask-Migrate
 Flask-WTF
 python-dotenv
 email_validator
+wikipedia==1.4.0
